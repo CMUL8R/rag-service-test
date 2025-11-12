@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Консоль RAG FAQ</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background: #101214;
+      color: #f4f5f7;
+    }
+    .page {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 2rem 1.25rem 4rem;
+    }
+    header {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      margin-bottom: 2rem;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding-bottom: 1rem;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.9rem;
+    }
+    header p {
+      margin: 0;
+      color: #b5c0d0;
+    }
+    section {
+      background: rgba(255,255,255,0.03);
+      padding: 1.5rem;
+      border-radius: 16px;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+    }
+    section h2 {
+      margin-top: 0;
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+    textarea, input[type="text"] {
+      width: 100%;
+      padding: 0.85rem;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(0,0,0,0.3);
+      color: inherit;
+      resize: vertical;
+      font-size: 1rem;
+    }
+    button {
+      background: #4c6ef5;
+      border: none;
+      color: white;
+      padding: 0.75rem 1.5rem;
+      border-radius: 999px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: transform 0.15s ease, opacity 0.15s ease;
+      margin-top: 0.75rem;
+    }
+    button:hover {
+      transform: translateY(-1px);
+      opacity: 0.9;
+    }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+      font-size: 0.95rem;
+    }
+    .badge {
+      padding: 0.1rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .badge.healthy { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .badge.degraded { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+    .badge.unhealthy { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+    .answer-card {
+      margin-top: 1rem;
+      padding: 1rem;
+      border-radius: 12px;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+    .sources {
+      display: grid;
+      gap: 0.75rem;
+      margin-top: 0.75rem;
+    }
+    .source-card {
+      border-left: 3px solid #a855f7;
+      padding-left: 0.75rem;
+    }
+    .muted { color: #9fa7b8; font-size: 0.9rem; }
+    .hidden { display: none; }
+    .upload-status {
+      margin-top: 0.75rem;
+      font-size: 0.95rem;
+    }
+    .flex-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .flex-row span {
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>Консоль RAG FAQ</h1>
+      <p>Загружайте документы, проверяйте состояние сервиса и задавайте вопросы базе знаний.</p>
+      <div class="status" id="health-summary">
+        <span class="muted">Состояние сервиса ещё не проверено...</span>
+      </div>
+      <button id="health-btn" type="button">Проверить здоровье</button>
+    </header>
+
+    <section>
+      <h2>Задать вопрос</h2>
+      <form id="ask-form">
+        <label for="question">Вопрос</label>
+        <textarea id="question" rows="3" placeholder="Например: Как настроить доступ к базе данных?" required></textarea>
+        <button id="ask-btn" type="submit">Получить ответ</button>
+      </form>
+      <div id="answer-block" class="answer-card hidden"></div>
+    </section>
+
+    <section>
+      <h2>Загрузка документа</h2>
+      <form id="upload-form">
+        <label for="document">Выберите файл (.txt, .md или .pdf)</label>
+        <input id="document" type="file" accept=".txt,.md,.pdf" required />
+        <button id="upload-btn" type="submit">Загрузить</button>
+      </form>
+      <div id="upload-status" class="upload-status"></div>
+    </section>
+  </div>
+
+  <script>
+    const healthBtn = document.getElementById('health-btn');
+    const healthSummary = document.getElementById('health-summary');
+    const askForm = document.getElementById('ask-form');
+    const askBtn = document.getElementById('ask-btn');
+    const questionField = document.getElementById('question');
+    const answerBlock = document.getElementById('answer-block');
+    const uploadForm = document.getElementById('upload-form');
+    const uploadBtn = document.getElementById('upload-btn');
+    const uploadStatus = document.getElementById('upload-status');
+
+    const BASE = '';
+    const statusLabels = {
+      healthy: 'работает',
+      degraded: 'есть проблемы',
+      unhealthy: 'не работает',
+    };
+
+    async function runHealth() {
+      healthBtn.disabled = true;
+      healthSummary.innerHTML = '<span class="muted">Проверяем...</span>';
+      try {
+        const res = await fetch(`${BASE}/api/health`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const badge = `<span class="badge ${data.status}">${statusLabels[data.status] || data.status}</span>`;
+        const grid = `<div class="flex-row">
+          <span>БД: ${data.database}</span>
+          <span>Кэш: ${data.redis}</span>
+          <span>Вектор: ${data.qdrant}</span>
+        </div>`;
+        healthSummary.innerHTML = `${badge} ${grid}`;
+      } catch (err) {
+        healthSummary.innerHTML = `<span class="badge unhealthy">ошибка</span> <span>${err.message}</span>`;
+      } finally {
+        healthBtn.disabled = false;
+      }
+    }
+
+    async function askQuestion(evt) {
+      evt.preventDefault();
+      const question = questionField.value.trim();
+      if (!question) return;
+      askBtn.disabled = true;
+      askBtn.textContent = 'Запрашиваем...';
+      answerBlock.classList.remove('hidden');
+      answerBlock.innerHTML = '<span class="muted">Генерируем ответ...</span>';
+      try {
+        const res = await fetch(`${BASE}/api/ask`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question })
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        renderAnswer(data);
+      } catch (err) {
+        answerBlock.innerHTML = `<span class="badge unhealthy">ошибка</span> ${err.message}`;
+      } finally {
+        askBtn.disabled = false;
+        askBtn.textContent = 'Получить ответ';
+      }
+    }
+
+    function renderAnswer(data) {
+      const sourcesHTML = (data.sources || []).map(src => {
+        return `<div class="source-card">
+          <strong>${src.document}</strong>
+          <div class="muted">score: ${src.score?.toFixed?.(3) ?? 'n/a'}</div>
+          <p>${src.content}</p>
+        </div>`;
+      }).join('');
+
+      answerBlock.innerHTML = `
+        <h3>Ответ</h3>
+        <p>${data.answer}</p>
+        <div class="flex-row">
+          <span>Токены: ${data.tokens_used}</span>
+          <span>Время: ${data.response_time?.toFixed?.(2) ?? 0} c</span>
+          <span>${data.cache_hit ? 'Кэш: HIT' : 'Кэш: MISS'}</span>
+        </div>
+        <h4>Источники</h4>
+        <div class="sources">${sourcesHTML || '<span class="muted">Нет источников</span>'}</div>
+      `;
+    }
+
+    async function uploadDocument(evt) {
+      evt.preventDefault();
+      const fileInput = document.getElementById('document');
+      if (!fileInput.files.length) return;
+      const file = fileInput.files[0];
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = 'Загружаем...';
+      uploadStatus.textContent = 'Документ загружается...';
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        const res = await fetch(`${BASE}/api/documents`, {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+        uploadStatus.textContent = `✓ Загрузили ${data.filename} (фрагментов: ${data.chunks})`;
+        uploadStatus.style.color = '#34d399';
+        fileInput.value = '';
+      } catch (err) {
+        uploadStatus.textContent = `Ошибка загрузки: ${err.message}`;
+        uploadStatus.style.color = '#f87171';
+      } finally {
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = 'Загрузить';
+      }
+    }
+
+    healthBtn.addEventListener('click', runHealth);
+    askForm.addEventListener('submit', askQuestion);
+    uploadForm.addEventListener('submit', uploadDocument);
+
+    runHealth();
+  </script>
+</body>
+</html>
