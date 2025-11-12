@@ -25,10 +25,13 @@
 
 ## API
 
-| `POST` | `/api/ask` | принимает вопрос (`question`) и возвращает ответ LLM и источники |
-| `POST` | `/api/documents` | загружает `.txt`/`.md`/`.pdf` файл в базу знаний |
-| `GET` | `/api/health` | healthcheck для внешних систем |
-| `GET` | `/api/metrics` | агрегированная статистика запросов |
+ `POST` | `/api/ask` | принимает запрос (`question`) и возвращает ответ LLM и источники 
+
+ `POST` | `/api/documents` | загружает `.txt`/`.md`/`.pdf` файл в базу знаний
+
+ `GET` | `/api/health` | healthcheck для внешних систем
+
+ `GET` | `/api/metrics` | агрегированная статистика запросов
 
 ## Документы и RAG
 - Сложите исходные материалы в каталог `documents/` (пример — `documents/*.
@@ -41,3 +44,6 @@
 
 ## Структура `.env`
 См. `./.env.example` — перечислены обязательные и опциональные переменные
+
+## Cкриншоты AI
+<img width="1920" height="1243" alt="Screenshot" src="https://github.com/user-attachments/assets/f13ed8b1-8ddc-4801-a0d5-0b0114be7983" />
